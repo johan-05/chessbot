@@ -4,27 +4,28 @@ use colored::*;
 use colored::ColoredString;
 struct Board{
     kings:u64,
-    queens:u64,         //u64 bitmaps of all piece-types
+    queens:u64,             // u64 bitmaps of all piece-types
     rooks:u64,
     bishops:u64,
     knights:u64,
     pawns:u64,
-    whites:u64,         //colors are tracked with color-bitmasks
-    blacks:u64,         //state numbers store additional state structured like this (little endian):
-    white_state:u32,    //  bit 0-3 castling abilities og kings and rooks, init is 1011
-    black_state:u32,    //  bit 4-15  50-rule, number of moves with only king on the board   
-}                       //  bit 16-23  index of piece susceptible to en passant
-                        // 0000 0000 0000 00000000 00000000 1011 
+    whites:u64,             // colors are tracked with color-bitmasks
+    blacks:u64,         
+    castelable_pieces:u64,  // bitmap of rooks and kings that can castle
+    fifty_rule:u8,          // number of moves without capture of pawn push
+    en_passant_index:u8,    // index of piece susceptible to en passant
+    eval:i8,                // evaluation of the position
+}                       
 /*
 abcdefgh
-00001000
+10001001
 00000000
 00000000
 00000000
 00000000
 00000000
 00000000
-00001000
+10001001
 */
 
 const MOVE_SEARCH_DEPTH:i32 = 5;
@@ -42,8 +43,10 @@ impl Board{
             pawns: 71776119061282560,
             whites: 65535,
             blacks: 18446462598732840960,
-            white_state: 11,
-            black_state: 11, 
+            castelable_pieces:9871890383196127369,
+            fifty_rule:0,
+            en_passant_index:0,
+            eval:0,
         }
     }
 
@@ -177,7 +180,28 @@ fn possible_white_moves(board:&Board, piece_mask:u64)->Vec<(i32, i32)>{
 }
 
 fn find_best_move(board:Board, depth:i32)->Board{
+    // the functions job is to take in results from the same functions one
+    // layer above and compare them one at a time
+    // my first intuition is to use while let Some() for all of it
+    // the challange is not checking the same position twize without
+    // storing it on the heap. 
+    let mut best_board:Option<Board> = None;
+    while let Some(new_board) = find_new_pawn_move(&board){
+        match best_board{
+        None=>{best_board = Some(new_board)},
+        Some(ref prev_board)=>{
+            if new_board.eval > prev_board.eval{
+            best_board = Some(new_board);    
+            }
+        }}
+    }
+    
+    
 
+    unimplemented!("amogus");
+}
+
+fn find_new_pawn_move(board:&Board)->Option<Board>{
 
     unimplemented!("amogus");
 }
@@ -186,6 +210,8 @@ fn main() {
     println!("let the chess begin");
 
     let mut board = Board::new();
+
+    print_mask(board.castelable_pieces, "castelable pieces");
 
     while &board.kings.count_ones()==&2{ //yes this game lets you capture the kings before the game ends
         display_board(&board);
