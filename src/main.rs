@@ -2,6 +2,7 @@ extern crate colored;
 
 use colored::*;
 use colored::ColoredString;
+#[derive(Clone, Copy)]
 struct Board{
     kings:u64,
     queens:u64,             // u64 bitmaps of all piece-types
@@ -27,6 +28,7 @@ abcdefgh
 00000000
 10001001
 */
+
 
 const MOVE_SEARCH_DEPTH:i32 = 5;
 
@@ -179,35 +181,111 @@ fn possible_white_moves(board:&Board, piece_mask:u64)->Vec<(i32, i32)>{
     unimplemented!("amogus");
 }
 
-fn find_best_move(board:Board, depth:i32)->Board{
+fn compare_boards(best_board:&mut Option<Board>, new_board:&mut Board, depth:i32){
+    let best_response = find_best_response(*new_board); 
+    let eval = find_best_move(best_response, depth-1).eval; //evaluation happens by magic
+    new_board.eval = eval; 
+    match best_board{
+    None=>{*best_board = Some(*new_board)},
+    Some(ref prev_board)=>{
+        if eval > prev_board.eval{
+        *best_board = Some(*new_board);    
+        }
+    }}
+}
+
+
+fn find_best_move(board:Board,  depth:i32)->Board{
     // the functions job is to take in results from the same functions one
     // layer above and compare them one at a time
     // my first intuition is to use while let Some() for all of it
-    // the challange is not checking the same position twize without
+    // the challange is not checking the same position twize without      
     // storing it on the heap. 
     let mut best_board:Option<Board> = None;
-    while let Some(new_board) = find_new_pawn_move(&board){
-        match best_board{
-        None=>{best_board = Some(new_board)},
-        Some(ref prev_board)=>{
-            if new_board.eval > prev_board.eval{
-            best_board = Some(new_board);    
-            }
-        }}
+    let mut pawn_bitmap:u64 = 0;
+    while let Some(mut new_board) = find_new_pawn_move(&board, &mut pawn_bitmap, depth){
+        compare_boards(&mut best_board, &mut new_board, depth);
     }
+
+    let mut knight_bitmap:u64 = 0;
+    while let Some(mut new_board) = find_new_knight_move(&board, &mut knight_bitmap, depth){
+        compare_boards(&mut best_board, &mut new_board, depth)
+    }
+    // challange with the knigth bitmap, and really all maps exept pawns
+    // how to handle squares that multiple pieces can move to?
+    // its a propper mind-bender
+
+
     
     
 
     unimplemented!("amogus");
 }
 
-fn find_new_pawn_move(board:&Board)->Option<Board>{
+fn find_best_response(board:Board)->Board{
+    unimplemented!("amogus");
+}
 
+fn find_new_pawn_move(board:&Board, pawn_bitmap:&mut u64, depth:i32)->Option<Board>{
+    
+    // find a move that has not happened yet
+    // tick the bitmap
+    let mut new_board = None;
+    let mut found_new_move = false;
+    let mut pawns = board.pawns & board.blacks;
+    while !found_new_move{
+        let first_pawn = 1<<pawns.ilog2();
+        if first_pawn == 0 {found_new_move = true}
+        if first_pawn&(board.whites|board.blacks) != 0{continue}
+        let pushed_pawn = first_pawn*256;
+        if pushed_pawn&(*pawn_bitmap) == 0 {
+            pawns = pawns^(first_pawn|pushed_pawn); 
+            *pawn_bitmap = *pawn_bitmap|pushed_pawn;
+            found_new_move = true;
+            let mut board_copy = board.clone();
+            board_copy.pawns = pawns;
+            new_board = Some(board_copy);
+        }else{
+            let jumped_pawn = first_pawn*65536;
+            if jumped_pawn&(*pawn_bitmap) == 0{
+                pawns = pawns^(first_pawn|jumped_pawn);
+                *pawn_bitmap = *pawn_bitmap|jumped_pawn;
+                found_new_move = true;
+                let mut board_copy = board.clone();
+                board_copy.pawns = pawns;
+                new_board = Some(board_copy);
+            }else{
+                pawns = pawns^first_pawn;
+            }
+        }
+    }
+
+    return new_board;
+}
+
+fn find_new_knight_move(board:&Board, pawn_bitmap:&mut u64, depth:i32)->Option<Board>{
+
+    /*
+    01010
+    10001
+    00x00  // find knight - shift this map - & with !white - gives all legal moves
+    10001  // check with bitmap , select first that does not clash (legal & bitmap != 0)
+    01010  // double bitmap shenanigans with move and piece encoding
+    */
+
+    let mut new_board:Option<Board> = None;
+    let mut found_new_move = false;
+    let mut knights  = board.knights & board.blacks;
+    while !found_new_move{
+        let index_of_knight = knights.ilog2() as u64;
+        
+    }
     unimplemented!("amogus");
 }
 
 fn main() {
     println!("let the chess begin");
+
 
     let mut board = Board::new();
 
