@@ -1,5 +1,7 @@
 extern crate colored;
 
+use std::ops::Add;
+
 use colored::*;
 use colored::ColoredString;
 #[derive(Clone, Copy)]
@@ -31,6 +33,7 @@ abcdefgh
 
 
 const MOVE_SEARCH_DEPTH:i32 = 5;
+const KNIGHT_OFFSETS:[u32;4] = [17, 15, 10, 6];
 
 
 #[allow(dead_code)]
@@ -211,9 +214,8 @@ fn find_best_move(board:Board,  depth:i32)->Board{
     while let Some(mut new_board) = find_new_knight_move(&board, &mut knight_bitmap, depth){
         compare_boards(&mut best_board, &mut new_board, depth)
     }
-    // challange with the knigth bitmap, and really all maps exept pawns
-    // how to handle squares that multiple pieces can move to?
-    // its a propper mind-bender
+    // challange for now is to handle captures
+    // I want a general way to handle it that is simple and doesnt require a million *((&(&mut)*)&)
 
 
     
@@ -234,8 +236,8 @@ fn find_new_pawn_move(board:&Board, pawn_bitmap:&mut u64, depth:i32)->Option<Boa
     let mut found_new_move = false;
     let mut pawns = board.pawns & board.blacks;
     while !found_new_move{
+        if pawns == 0 {break}
         let first_pawn = 1<<pawns.ilog2();
-        if first_pawn == 0 {found_new_move = true}
         if first_pawn&(board.whites|board.blacks) != 0{continue}
         let pushed_pawn = first_pawn*256;
         if pushed_pawn&(*pawn_bitmap) == 0 {
@@ -263,24 +265,50 @@ fn find_new_pawn_move(board:&Board, pawn_bitmap:&mut u64, depth:i32)->Option<Boa
     return new_board;
 }
 
-fn find_new_knight_move(board:&Board, pawn_bitmap:&mut u64, depth:i32)->Option<Board>{
+fn find_new_knight_move(board:&Board, knight_bitmap:&mut u64, depth:i32)->Option<Board>{
 
     /*
     01010
     10001
     00x00  // find knight - shift this map - & with !white - gives all legal moves
     10001  // check with bitmap , select first that does not clash (legal & bitmap != 0)
-    01010  // double bitmap shenanigans with move and piece encoding sdkjfskdj
+    01010  // double bitmap shenanigans with move and piece encoding 
     */
 
     let mut new_board:Option<Board> = None;
-    let mut found_new_move = false;
     let mut knights  = board.knights & board.blacks;
-    while !found_new_move{
-        let index_of_knight = knights.ilog2() as u64;
-        
+    'outer: loop{
+        if knights == 0{break 'outer}
+        let first_knight = 1<<knights.ilog2() as u64;
+        if first_knight & *knight_bitmap != 0{
+            knights = knights^first_knight;
+            continue;
+        }
+        for kn_ofst in KNIGHT_OFFSETS{
+            let moved_knight = first_knight<<kn_ofst;
+            if moved_knight & (*knight_bitmap|board.blacks) == 0{
+                knights = knights^first_knight|moved_knight;
+                *knight_bitmap = *knight_bitmap|moved_knight;
+                let mut board_copy = board.clone();
+                board_copy.knights = knights;
+                new_board = Some(board_copy);
+                break 'outer;
+            }
+        }
+        for kn_ofst in KNIGHT_OFFSETS{
+            let moved_knight = first_knight>>kn_ofst;
+            if moved_knight & (*knight_bitmap|board.blacks) == 0{
+                knights = knights^first_knight|moved_knight;
+                *knight_bitmap = *knight_bitmap|moved_knight;
+                let mut board_copy = board.clone();
+                board_copy.knights = knights;
+                new_board = Some(board_copy);
+                break 'outer;
+            }
+        }
     }
-    unimplemented!("amogus");
+
+    return new_board;
 }
 
 fn main() {
