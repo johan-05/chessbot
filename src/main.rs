@@ -270,7 +270,7 @@ fn find_new_knight_move(board:&Board, pawn_bitmap:&mut u64, depth:i32)->Option<B
     10001
     00x00  // find knight - shift this map - & with !white - gives all legal moves
     10001  // check with bitmap , select first that does not clash (legal & bitmap != 0)
-    01010  // double bitmap shenanigans with move and piece encoding
+    01010  // double bitmap shenanigans with move and piece encoding sdkjfskdj
     */
 
     let mut new_board:Option<Board> = None;
