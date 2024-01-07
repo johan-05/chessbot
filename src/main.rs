@@ -61,6 +61,23 @@ impl Board{
         unimplemented!("amogus");
     }
 
+    fn take(&mut self, bitmap:u64){
+        self.whites = self.whites ^ bitmap;
+        if self.pawns & bitmap != 0{
+            self.pawns = self.pawns ^ bitmap;
+        } else if self.knights & bitmap != 0{
+            self.knights = self.knights ^ bitmap;
+        } else if self.bishops & bitmap != 0{
+            self.bishops = self.bishops ^ bitmap;
+        } else if self.rooks & bitmap != 0{
+            self.rooks = self.rooks ^ bitmap;
+        } else if self.queens & bitmap != 0{
+            self.queens = self.queens ^ bitmap;
+        } else if self.kings & bitmap != 0{
+            self.kings = self.kings ^ bitmap;
+        }
+    }
+
 }
 
 fn print_mask(mask:u64, name:&str){
@@ -290,6 +307,9 @@ fn find_new_knight_move(board:&Board, knight_bitmap:&mut u64, depth:i32)->Option
                 knights = knights^first_knight|moved_knight;
                 *knight_bitmap = *knight_bitmap|moved_knight;
                 let mut board_copy = board.clone();
+                if moved_knight & board.whites != 0{
+                    board_copy.take(first_knight);
+                }
                 board_copy.knights = knights;
                 new_board = Some(board_copy);
                 break 'outer;
