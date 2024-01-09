@@ -59,6 +59,7 @@ impl Board{
         unimplemented!("amogus");
     }
 
+
     fn take(&mut self, bitmap:u64){
         self.whites = self.whites ^ bitmap;
         if self.pawns & bitmap != 0{
@@ -221,12 +222,12 @@ fn find_best_move(board:Board,  depth:i32)->Board{
     // storing it on the heap. 
     let mut best_board:Option<Board> = None;
     let mut pawn_bitmap:u64 = 0;
-    while let Some(mut new_board) = find_new_pawn_move(&board, &mut pawn_bitmap, depth){
+    while let Some(mut new_board) = find_new_pawn_move(&board, &mut pawn_bitmap){
         compare_boards(&mut best_board, &mut new_board, depth);
     }
 
     let mut knight_bitmap:u64 = 0;
-    while let Some(mut new_board) = find_new_knight_move(&board, &mut knight_bitmap, depth){
+    while let Some(mut new_board) = find_new_knight_move(&board, &mut knight_bitmap){
         compare_boards(&mut best_board, &mut new_board, depth)
     }
     // challange for now is to handle captures
@@ -243,7 +244,7 @@ fn find_best_response(board:Board)->Board{
     unimplemented!("amogus");
 }
 
-fn find_new_pawn_move(board:&Board, pawn_bitmap:&mut u64, depth:i32)->Option<Board>{
+fn find_new_pawn_move(board:&Board, pawn_bitmap:&mut u64)->Option<Board>{
     
     // find a move that has not happened yet
     // tick the bitmap
@@ -280,7 +281,7 @@ fn find_new_pawn_move(board:&Board, pawn_bitmap:&mut u64, depth:i32)->Option<Boa
     return new_board;
 }
 
-fn find_new_knight_move(board:&Board, knight_bitmap:&mut u64, depth:i32)->Option<Board>{
+fn find_new_knight_move(board:&Board, knight_bitmap:&mut u64)->Option<Board>{
 
     /*
     01010
@@ -310,7 +311,6 @@ fn find_new_knight_move(board:&Board, knight_bitmap:&mut u64, depth:i32)->Option
                 }
                 board_copy.knights = knights;
                 new_board = Some(board_copy);
-                break 'outer;
             }
         }
         for kn_ofst in KNIGHT_OFFSETS{
@@ -319,9 +319,11 @@ fn find_new_knight_move(board:&Board, knight_bitmap:&mut u64, depth:i32)->Option
                 knights = knights^first_knight|moved_knight;
                 *knight_bitmap = *knight_bitmap|moved_knight;
                 let mut board_copy = board.clone();
+                if moved_knight & board.whites != 0{
+                    board_copy.take(first_knight);
+                }
                 board_copy.knights = knights;
                 new_board = Some(board_copy);
-                break 'outer;
             }
         }
     }
