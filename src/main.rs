@@ -1,7 +1,5 @@
 extern crate colored;
 
-use std::ops::Add;
-
 use colored::*;
 use colored::ColoredString;
 #[derive(Clone, Copy)]
