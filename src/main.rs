@@ -230,9 +230,11 @@ fn find_best_move(board:Board,  depth:i32)->Board{
     while let Some(mut new_board) = find_new_knight_move(&board, &mut knight_bitmap){
         compare_boards(&mut best_board, &mut new_board, depth)
     }
-    // challange for now is to handle captures
-    // I want a general way to handle it that is simple and doesnt require a million *((&(&mut)*)&)
 
+    let mut bishop_bitmap:u64 = 0;
+    while let Some(mut new_board) = find_new_bishop_move(&board, &mut bishop_bitmap){
+        compare_boards(&mut best_board, &mut new_board, depth)
+    }
 
     
     
@@ -243,6 +245,18 @@ fn find_best_move(board:Board,  depth:i32)->Board{
 fn find_best_response(board:Board)->Board{
     unimplemented!("amogus");
 }
+
+
+const SHIFTING_CLOSURES:[fn(u64, u64)->u64; 8] = [
+    #[inline]|x,y| x<<(9*y),
+    |x,y| x<<(7*y),
+    |x,y| x>>(9*y),
+    |x,y| x>>(7*y), 
+    |x,y| x<<(1*y),
+    |x,y| x<<(8*y),
+    |x,y| x>>(1*y),
+    |x,y| x>>(8*y),
+];
 
 fn find_new_pawn_move(board:&Board, pawn_bitmap:&mut u64)->Option<Board>{
     
@@ -290,7 +304,6 @@ fn find_new_knight_move(board:&Board, knight_bitmap:&mut u64)->Option<Board>{
     10001  // check with bitmap , select first that does not clash (legal & bitmap != 0)
     01010  // double bitmap shenanigans with move and piece encoding 
     */
-
     let mut new_board:Option<Board> = None;
     let mut knights  = board.knights & board.blacks;
     'outer: loop{
@@ -311,6 +324,7 @@ fn find_new_knight_move(board:&Board, knight_bitmap:&mut u64)->Option<Board>{
                 }
                 board_copy.knights = knights;
                 new_board = Some(board_copy);
+                break 'outer;
             }
         }
         for kn_ofst in KNIGHT_OFFSETS{
@@ -324,12 +338,66 @@ fn find_new_knight_move(board:&Board, knight_bitmap:&mut u64)->Option<Board>{
                 }
                 board_copy.knights = knights;
                 new_board = Some(board_copy);
+                break 'outer;
             }
         }
+        knights = knights^first_knight;
+        *knight_bitmap = (*knight_bitmap|first_knight) & board.knights & board.blacks;
     }
 
     return new_board;
 }
+
+fn find_new_bishop_move(board:&Board, bishop_bitmap:&mut u64)->Option<Board>{
+
+    // fancy schmancy raycasting
+    let mut new_board:Option<Board> = None;
+    let mut bishops = board.bishops & board.blacks;
+
+    'outer:loop{
+        if bishops==0{break 'outer}
+        let first_bishop = 1<<bishops.ilog2() as u64;
+        if first_bishop & *bishop_bitmap != 0{
+            bishops = bishops ^ first_bishop;
+            *bishop_bitmap = *bishop_bitmap & board.bishops;
+            continue;
+        }
+
+        let bishop_closure_indexes = [0,1,2,3];
+        for closure_index in bishop_closure_indexes{
+            if let Some(moved_bishop) = cross_positive(board, first_bishop, &mut bishops, bishop_bitmap, &SHIFTING_CLOSURES[closure_index]){
+                let mut board_copy = board.clone();
+                if moved_bishop & board.whites != 0{
+                    board_copy.take(first_bishop);
+                }
+                board_copy.bishops = bishops;
+                new_board = Some(board_copy);
+                break 'outer;
+            }
+        }
+        bishops = bishops^first_bishop;
+        *bishop_bitmap = (*bishop_bitmap|first_bishop) & board.bishops & board.blacks;
+    }
+
+    return new_board;
+}
+
+fn cross_positive(board:&Board, first_piece:u64, pieces:&mut u64, piece_bitmap:&mut u64, closure:&dyn Fn(u64,u64)->u64)->Option<u64>{
+    for offset_scalars in 1..8{
+        let moved_piece = closure(first_piece, offset_scalars);
+        if moved_piece & *piece_bitmap != 0{
+            continue;
+        }
+        if moved_piece & board.blacks != 0{
+            break;
+        }
+        *pieces = *pieces^first_piece|moved_piece;
+        *piece_bitmap = *piece_bitmap|moved_piece;
+        return Some(moved_piece);
+    }
+    return None;
+}
+
 
 fn main() {
     println!("let the chess begin");
