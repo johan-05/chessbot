@@ -32,6 +32,16 @@ abcdefgh
 
 const MOVE_SEARCH_DEPTH:i32 = 5;
 const KNIGHT_OFFSETS:[u32;4] = [17, 15, 10, 6];
+const SHIFTING_CLOSURES:[fn(u64, u64)->u64; 8] = [
+    #[inline]|x,y| x<<(9*y),
+    #[inline]|x,y| x<<(7*y),
+    #[inline]|x,y| x>>(9*y),
+    #[inline]|x,y| x>>(7*y), 
+    #[inline]|x,y| x<<(1*y),
+    #[inline]|x,y| x<<(8*y),
+    #[inline]|x,y| x>>(1*y),
+    #[inline]|x,y| x>>(8*y),
+];
 
 
 #[allow(dead_code)]
@@ -200,6 +210,7 @@ fn possible_white_moves(board:&Board, piece_mask:u64)->Vec<(i32, i32)>{
     unimplemented!("amogus");
 }
 
+#[inline]
 fn compare_boards(best_board:&mut Option<Board>, new_board:&mut Board, depth:i32){
     let best_response = find_best_response(*new_board); 
     let eval = find_best_move(best_response, depth-1).eval; //evaluation happens by magic
@@ -219,8 +230,10 @@ fn find_best_move(board:Board,  depth:i32)->Board{
     // layer above and compare them one at a time
     // my first intuition is to use while let Some() for all of it
     // the challange is not checking the same position twize without      
-    // storing it on the heap. 
+    // storing every checked position on the heap. 
+
     let mut best_board:Option<Board> = None;
+
     let mut pawn_bitmap:u64 = 0;
     while let Some(mut new_board) = find_new_pawn_move(&board, &mut pawn_bitmap){
         compare_boards(&mut best_board, &mut new_board, depth);
@@ -236,27 +249,28 @@ fn find_best_move(board:Board,  depth:i32)->Board{
         compare_boards(&mut best_board, &mut new_board, depth)
     }
 
-    
-    
+    let mut rook_bitmap:u64 = 0;
+    while let Some(mut new_board) = find_new_rook_move(&board, &mut rook_bitmap){
+        compare_boards(&mut best_board, &mut new_board, depth)
+    }
 
-    unimplemented!("amogus");
+    let mut queen_bitmap:u64 = 0;
+    while let Some(mut new_board) = find_new_queen_move(&board, &mut queen_bitmap){
+        compare_boards(&mut best_board, &mut new_board, depth)
+    }
+
+    let mut king_bitmap:u64 = 0;
+    while let Some(mut new_board) = find_new_king_move(&board, &mut king_bitmap){
+        compare_boards(&mut best_board, &mut new_board, depth)
+    }
+
+    return best_board.unwrap();
 }
 
 fn find_best_response(board:Board)->Board{
     unimplemented!("amogus");
 }
 
-
-const SHIFTING_CLOSURES:[fn(u64, u64)->u64; 8] = [
-    #[inline]|x,y| x<<(9*y),
-    |x,y| x<<(7*y),
-    |x,y| x>>(9*y),
-    |x,y| x>>(7*y), 
-    |x,y| x<<(1*y),
-    |x,y| x<<(8*y),
-    |x,y| x>>(1*y),
-    |x,y| x>>(8*y),
-];
 
 fn find_new_pawn_move(board:&Board, pawn_bitmap:&mut u64)->Option<Board>{
     
@@ -348,6 +362,22 @@ fn find_new_knight_move(board:&Board, knight_bitmap:&mut u64)->Option<Board>{
     return new_board;
 }
 
+fn cross_positive(board:&Board, first_piece:u64, pieces:&mut u64, piece_bitmap:&mut u64, closure:&dyn Fn(u64,u64)->u64)->Option<u64>{
+    for offset_scalars in 1..8{
+        let moved_piece = closure(first_piece, offset_scalars);
+        if moved_piece & *piece_bitmap != 0{
+            continue;
+        }
+        if moved_piece & board.blacks != 0{
+            break;
+        }
+        *pieces = *pieces^first_piece|moved_piece;
+        *piece_bitmap = *piece_bitmap|moved_piece;
+        return Some(moved_piece);
+    }
+    return None;
+}
+
 fn find_new_bishop_move(board:&Board, bishop_bitmap:&mut u64)->Option<Board>{
 
     // fancy schmancy raycasting
@@ -382,20 +412,104 @@ fn find_new_bishop_move(board:&Board, bishop_bitmap:&mut u64)->Option<Board>{
     return new_board;
 }
 
-fn cross_positive(board:&Board, first_piece:u64, pieces:&mut u64, piece_bitmap:&mut u64, closure:&dyn Fn(u64,u64)->u64)->Option<u64>{
-    for offset_scalars in 1..8{
-        let moved_piece = closure(first_piece, offset_scalars);
-        if moved_piece & *piece_bitmap != 0{
+fn find_new_rook_move(board:&Board, rook_bitmap:&mut u64)->Option<Board>{
+
+    // fancy schmancy raycasting
+    let mut new_board:Option<Board> = None;
+    let mut rooks = board.rooks & board.blacks;
+
+    'outer:loop{
+        if rooks==0{break 'outer}
+        let first_rook = 1<<rooks.ilog2() as u64;
+        if first_rook & *rook_bitmap != 0{
+            rooks = rooks ^ first_rook;
+            *rook_bitmap = *rook_bitmap & board.rooks;
             continue;
         }
-        if moved_piece & board.blacks != 0{
-            break;
+
+        let rook_closure_indexes = [4,5,6,7];
+        for closure_index in rook_closure_indexes{
+            if let Some(moved_rook) = cross_positive(board, first_rook, &mut rooks, rook_bitmap, &SHIFTING_CLOSURES[closure_index]){
+                let mut board_copy = board.clone();
+                if moved_rook & board.whites != 0{
+                    board_copy.take(first_rook);
+                }
+                board_copy.rooks = rooks;
+                new_board = Some(board_copy);
+                break 'outer;
+            }
         }
-        *pieces = *pieces^first_piece|moved_piece;
-        *piece_bitmap = *piece_bitmap|moved_piece;
-        return Some(moved_piece);
+        rooks = rooks^first_rook;
+        *rook_bitmap = (*rook_bitmap|first_rook) & board.rooks & board.blacks;
     }
-    return None;
+
+    return new_board;
+}
+
+fn find_new_queen_move(board:&Board, queen_bitmap:&mut u64)->Option<Board>{
+    
+    // fancy schmancy raycasting
+    let mut new_board:Option<Board> = None;
+    let mut queens = board.queens & board.blacks;
+
+    'outer:loop{
+        if queens==0{break 'outer}
+        let first_queen = 1<<queens.ilog2() as u64;
+        if first_queen & *  queen_bitmap != 0{
+            queens = queens ^ first_queen;
+            *queen_bitmap = *queen_bitmap & board.queens;
+            continue;
+        }
+
+        let queen_closure_indexes = [0,1,2,3,4,5,6,7];
+        for closure_index in queen_closure_indexes{
+            if let Some(moved_queen) = cross_positive(board, first_queen, &mut queens, queen_bitmap, &SHIFTING_CLOSURES[closure_index]){
+                let mut board_copy = board.clone();
+                if moved_queen & board.queens != 0{
+                    board_copy.take(first_queen);
+                }
+                board_copy.queens = queens;
+                new_board = Some(board_copy);
+                break 'outer;
+            }
+        }
+        queens = queens^first_queen;
+        *queen_bitmap = (*queen_bitmap|first_queen) & board.queens & board.blacks;
+    }
+
+    return new_board;
+}
+
+fn find_new_king_move(board:&Board, king_bitmap:&mut u64)->Option<Board>{
+    let mut new_board:Option<Board> = None;
+    let mut kings = board.kings & board.blacks;
+
+    'outer:loop{
+        if kings==0{break 'outer}
+        let first_king = 1<<kings.ilog2() as u64;
+        if first_king & *  king_bitmap != 0{
+            kings = kings ^ first_king;
+            *king_bitmap = *king_bitmap & board.queens;
+            continue;
+        }
+
+        let king_closure_indexes = [0,1,2,3,4,5,6,7];
+        for closure_index in king_closure_indexes{
+            if let Some(moved_king) = cross_positive(board, first_king, &mut kings, king_bitmap, &SHIFTING_CLOSURES[closure_index]){
+                let mut board_copy = board.clone();
+                if moved_king & board.kings != 0{
+                    board_copy.take(first_king);
+                }
+                board_copy.kings = kings;
+                new_board = Some(board_copy);
+                break 'outer;
+            }
+        }
+        kings = kings^first_king;
+        *king_bitmap = (*king_bitmap|first_king) & board.kings & board.blacks;
+    }
+
+    return new_board;
 }
 
 
