@@ -89,126 +89,7 @@ impl Board{
 
 }
 
-fn print_mask(mask:u64, name:&str){
-    println!("{}:", name);
-    let range = 0..8;
-    for i in range.into_iter().rev(){
-        let submask = (mask&(0b11111111<<(i*8)))>>(i*8);
-        println!("{:08b}", submask);
-    }
-    println!(" ");
-}
 
-
-fn display_board(board:&Board){
-    let mut board_list:Vec<ColoredString> = Vec::with_capacity(64);
-    for  i in 0..64{
-        let mut square:ColoredString;
-
-        if board.whites&(1<<i)!=0{
-            if (i+i/8)%2==0{
-                if (board.whites|board.blacks)&(1<<i)==0{
-                    square = "  ".truecolor(8, 11, 11).on_truecolor(255, 255, 255);
-                }else if board.kings&(1<<i)!=0{
-                    square = "♔ ".truecolor(8, 11, 11).on_truecolor(255, 255, 255);
-                }else if board.queens&(1<<i)!=0{
-                    square = "♕ ".truecolor(8, 11, 11).on_truecolor(255, 255, 255);
-                }else if board.rooks&(1<<i)!=0{
-                    square = "♖ ".truecolor(8, 11, 11).on_truecolor(255, 255, 255);
-                }else if board.bishops&(1<<i)!=0{
-                    square = "♗ ".truecolor(8, 11, 11).on_truecolor(255, 255, 255);
-                }else if board.knights&(1<<i)!=0{
-                    square = "♘ ".truecolor(8, 11, 11).on_truecolor(255, 255, 255);
-                }else{
-                    square = "♙ ".truecolor(8, 11, 11).on_truecolor(255, 255, 255);
-                } 
-            }else if (board.whites|board.blacks)&(1<<i)==0{
-                square = "  ".truecolor(255, 255, 255).on_truecolor(119, 149, 86);
-            }else if board.kings&(1<<i)!=0{
-                square = "♚ ".truecolor(255, 255, 255).on_truecolor(119, 149, 86);
-            }else if board.queens&(1<<i)!=0{
-                square = "♛ ".truecolor(255, 255, 255).on_truecolor(119, 149, 86);
-            }else if board.rooks&(1<<i)!=0{
-                square = "♜ ".truecolor(255, 255, 255).on_truecolor(119, 149, 86);
-            }else if board.bishops&(1<<i)!=0{
-                square = "♝ ".truecolor(255, 255, 255).on_truecolor(119, 149, 86);
-            }else if board.knights&(1<<i)!=0{
-                square = "♞ ".truecolor(255, 255, 255).on_truecolor(119, 149, 86);
-            }else{
-                square = "♟︎ ".truecolor(255, 255, 255).on_truecolor(119, 149, 86);
-            }    
-        }else{
-            if (board.whites|board.blacks)&(1<<i)==0{
-                square = "  ".truecolor(8, 11, 11);
-            }else if board.kings&(1<<i)!=0{
-                square = "♚ ".truecolor(8, 11, 11);
-            }else if board.queens&(1<<i)!=0{
-                square = "♛ ".truecolor(8, 11, 11);
-            }else if board.rooks&(1<<i)!=0{
-                square = "♜ ".truecolor(8, 11, 11);
-            }else if board.bishops&(1<<i)!=0{
-                square = "♝ ".truecolor(8, 11, 11);
-            }else if board.knights&(1<<i)!=0{
-                square = "♞ ".truecolor(8, 11, 11);
-            }else{
-                square = "♟︎ ".truecolor(8, 11, 11);
-            }
-    
-            if (i+i/8)%2==0{
-                square = square.on_truecolor(255, 255, 255);
-            }else{
-                square = square.on_truecolor(119, 149, 86);
-            }
-        }
-        board_list.push(square);
-    }
-    let range = 0..8;
-    for i in range.into_iter().rev(){
-        println!("{}{}{}{}{}{}{}{}",
-            board_list[8*i+7], board_list[8*i+6],
-            board_list[8*i+5], board_list[8*i+4],
-            board_list[8*i+3], board_list[8*i+2],
-            board_list[8*i+1], board_list[8*i  ],
-        )
-    }
-    println!(" ");
-}
-
-fn collect_white_move(board:Board)->Board{
-    let mut row = 9;
-    let mut col = 9;
-    while board.whites&(1<<(8*(col-1)+8-row))==0{
-        let mut input:String = "".to_owned();
-        println!("Select piece");
-        std::io::stdin().read_line(&mut input).unwrap();
-        println!("{}", input);
-        if input.chars().count() != 3{
-            println!("invalid square");
-            continue;
-        }
-        let mut iter = input.chars();
-        row = iter.next().unwrap() as u32 - 96;
-        col = iter.next().unwrap() as u32 - 48;
-    }
-
-    println!("{}, {}", row, col);
-    let piece_mask = 1<<(8*(col-1)+8-row);
-    let move_squares:Vec<(i32,i32)> = possible_white_moves(&board, piece_mask);
-
-    // mark and display the possible moves from move_squares
-    // collect second input, move piece and return the board
-
-    unimplemented!("amogus");
-}
-
-fn possible_white_moves(board:&Board, piece_mask:u64)->Vec<(i32, i32)>{
-
-    // figure out what piece it is
-    // use engine to find possible next positions
-    // match difference between posissions and the current
-    // make those into coridiantes and return them
-    unimplemented!("amogus");
-}
 
 #[inline]
 fn compare_boards(best_board:&mut Option<Board>, new_board:&mut Board, depth:i32){
@@ -480,6 +361,19 @@ fn find_new_queen_move(board:&Board, queen_bitmap:&mut u64)->Option<Board>{
     return new_board;
 }
 
+fn kings_cross_positive(board:&Board, first_piece:u64, pieces:&mut u64, piece_bitmap:&mut u64, closure:&dyn Fn(u64,u64)->u64)->Option<u64>{
+    let moved_piece = closure(first_piece, 1);
+    if moved_piece & *piece_bitmap != 0{
+        return None;
+    }
+    if moved_piece & board.blacks != 0{
+        return None;
+    }
+    *pieces = *pieces^first_piece|moved_piece;
+    *piece_bitmap = *piece_bitmap|moved_piece;
+    return Some(moved_piece);
+}
+
 fn find_new_king_move(board:&Board, king_bitmap:&mut u64)->Option<Board>{
     let mut new_board:Option<Board> = None;
     let mut kings = board.kings & board.blacks;
@@ -495,7 +389,7 @@ fn find_new_king_move(board:&Board, king_bitmap:&mut u64)->Option<Board>{
 
         let king_closure_indexes = [0,1,2,3,4,5,6,7];
         for closure_index in king_closure_indexes{
-            if let Some(moved_king) = cross_positive(board, first_king, &mut kings, king_bitmap, &SHIFTING_CLOSURES[closure_index]){
+            if let Some(moved_king) = kings_cross_positive(board, first_king, &mut kings, king_bitmap, &SHIFTING_CLOSURES[closure_index]){
                 let mut board_copy = board.clone();
                 if moved_king & board.kings != 0{
                     board_copy.take(first_king);
@@ -534,4 +428,131 @@ fn main() {
         //make response
         std::thread::sleep(std::time::Duration::from_secs(1));
     }
+}
+
+fn print_mask(mask:u64, name:&str){
+    println!("{}:", name);
+    let range = 0..8;
+    for i in range.into_iter().rev(){
+        let submask = (mask&(0b11111111<<(i*8)))>>(i*8);
+        println!("{:08b}", submask);
+    }
+    println!(" ");
+}
+
+
+fn display_board(board:&Board){
+    let mut board_list:Vec<ColoredString> = Vec::with_capacity(64);
+    for  i in 0..64{
+        let mut square:ColoredString;
+
+        if board.whites&(1<<i)!=0{
+            if (i+i/8)%2==0{
+                if (board.whites|board.blacks)&(1<<i)==0{
+                    square = "  ".truecolor(8, 11, 11).on_truecolor(255, 255, 255);
+                }else if board.kings&(1<<i)!=0{
+                    square = "♔ ".truecolor(8, 11, 11).on_truecolor(255, 255, 255);
+                }else if board.queens&(1<<i)!=0{
+                    square = "♕ ".truecolor(8, 11, 11).on_truecolor(255, 255, 255);
+                }else if board.rooks&(1<<i)!=0{
+                    square = "♖ ".truecolor(8, 11, 11).on_truecolor(255, 255, 255);
+                }else if board.bishops&(1<<i)!=0{
+                    square = "♗ ".truecolor(8, 11, 11).on_truecolor(255, 255, 255);
+                }else if board.knights&(1<<i)!=0{
+                    square = "♘ ".truecolor(8, 11, 11).on_truecolor(255, 255, 255);
+                }else{
+                    square = "♙ ".truecolor(8, 11, 11).on_truecolor(255, 255, 255);
+                } 
+            }else if (board.whites|board.blacks)&(1<<i)==0{
+                square = "  ".truecolor(255, 255, 255).on_truecolor(119, 149, 86);
+            }else if board.kings&(1<<i)!=0{
+                square = "♚ ".truecolor(255, 255, 255).on_truecolor(119, 149, 86);
+            }else if board.queens&(1<<i)!=0{
+                square = "♛ ".truecolor(255, 255, 255).on_truecolor(119, 149, 86);
+            }else if board.rooks&(1<<i)!=0{
+                square = "♜ ".truecolor(255, 255, 255).on_truecolor(119, 149, 86);
+            }else if board.bishops&(1<<i)!=0{
+                square = "♝ ".truecolor(255, 255, 255).on_truecolor(119, 149, 86);
+            }else if board.knights&(1<<i)!=0{
+                square = "♞ ".truecolor(255, 255, 255).on_truecolor(119, 149, 86);
+            }else{
+                square = "♟︎ ".truecolor(255, 255, 255).on_truecolor(119, 149, 86);
+            }    
+        }else{
+            if (board.whites|board.blacks)&(1<<i)==0{
+                square = "  ".truecolor(8, 11, 11);
+            }else if board.kings&(1<<i)!=0{
+                square = "♚ ".truecolor(8, 11, 11);
+            }else if board.queens&(1<<i)!=0{
+                square = "♛ ".truecolor(8, 11, 11);
+            }else if board.rooks&(1<<i)!=0{
+                square = "♜ ".truecolor(8, 11, 11);
+            }else if board.bishops&(1<<i)!=0{
+                square = "♝ ".truecolor(8, 11, 11);
+            }else if board.knights&(1<<i)!=0{
+                square = "♞ ".truecolor(8, 11, 11);
+            }else{
+                square = "♟︎ ".truecolor(8, 11, 11);
+            }
+    
+            if (i+i/8)%2==0{
+                square = square.on_truecolor(255, 255, 255);
+            }else{
+                square = square.on_truecolor(119, 149, 86);
+            }
+        }
+        board_list.push(square);
+    }
+    let range = 0..8;
+    for i in range.into_iter().rev(){
+        println!("{}{}{}{}{}{}{}{}",
+            board_list[8*i+7], board_list[8*i+6],
+            board_list[8*i+5], board_list[8*i+4],
+            board_list[8*i+3], board_list[8*i+2],
+            board_list[8*i+1], board_list[8*i  ],
+        )
+    }
+    println!(" ");
+}
+
+fn collect_white_move(board:Board)->Board{
+    let mut row = 9;
+    let mut col = 9;
+    while board.whites&(1<<(8*(col-1)+8-row))==0{
+        let mut input:String = "".to_owned();
+        println!("Select piece");
+        std::io::stdin().read_line(&mut input).unwrap();
+        println!("{}", input);
+        if input.chars().count() != 3{
+            println!("invalid square");
+            continue;
+        }
+        let mut iter = input.chars();
+        row = iter.next().unwrap() as u32 - 96;
+        col = iter.next().unwrap() as u32 - 48;
+    }
+
+    println!("{}, {}", row, col);
+    let piece_mask = 1<<(8*(col-1)+8-row);
+    let move_squares:u64 = possible_white_moves(&board, piece_mask);
+
+    // mark and display the possible moves from move_squares
+    // collect second input, move piece and return the board
+
+    unimplemented!("amogus");
+}
+
+fn possible_white_moves(board:&Board, piece_mask:u64)->u64{
+
+    // figure out what piece it is
+    // use engine to find possible next positions
+    // match difference between posissions and the current
+    // make those into coridiantes and return them
+
+    if piece_mask & board.pawns != 0{
+        let mut pawn_bitmask = 0;
+        find_new_pawn_move(&board,&mut pawn_bitmask );
+    }
+
+    unimplemented!("amogus");
 }
