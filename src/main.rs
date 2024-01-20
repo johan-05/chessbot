@@ -41,20 +41,21 @@ where
 
 /*
 abcdefgh
-00000001
-00000001
-00000001
-00000001
-00000001
-00000001
-00000001
-00000001
+00000000
+00000000
+00000000
+00011000
+00011000
+00000000
+00000000
+00000000
 */
 
 
 
 
-const MOVE_SEARCH_DEPTH:i32 = 1;
+const MOVE_SEARCH_DEPTH:i32 = 2;
+const CENTER_PIECES:u64 = 103481868288;
 const KNIGHT_OFFSETS:[KnOfst;4] = [
     KnOfst{offset:17, usage_mask_p:18446603888132915328, usage_mask_n:723401728381419519},
     KnOfst{offset:15, usage_mask_p:18446463702556279041, usage_mask_n:9259542123273846783},
@@ -66,8 +67,8 @@ const KNIGHT_OFFSETS:[KnOfst;4] = [
 
 const CLOSURES:[fn(u64, u64)->u64; 8] = [
     |x,y| x<<(9*y),
-    |x,y| x<<(9*y),
-    |x,y| x<<(9*y),
+    |x,y| x<<(7*y),
+    |x,y| x>>(9*y),
     |x,y| x>>(7*y),
     |x,y| x<<(1*y),
     |x,y| x<<(8*y),
@@ -107,14 +108,16 @@ impl Board{
     }
 
     fn evaluate_position(&mut self)->i16{
-        let mut eval = 0i16;
+        let eval;
 
-        eval += (self.pawns&self.blacks).count_ones() as i16 - (self.pawns&self.whites).count_ones() as i16;
-        eval += 3*((self.knights&self.blacks).count_ones() as i16 - (self.knights&self.whites).count_ones() as i16);
-        eval += 3*((self.bishops&self.blacks).count_ones() as i16 - (self.bishops&self.whites).count_ones() as i16);
-        eval += 5*((self.rooks&self.blacks).count_ones() as i16 - (self.rooks&self.whites).count_ones() as i16);
-        eval += 9*((self.queens&self.blacks).count_ones() as i16 - (self.queens&self.whites).count_ones() as i16);
-        eval += 20000*((self.kings&self.blacks).count_ones() as i16 - (self.kings&self.whites).count_ones() as i16);
+        let pawn = (self.pawns&self.blacks).count_ones() as i16 - (self.pawns&self.whites).count_ones() as i16;
+        let knight = 3*((self.knights&self.blacks).count_ones() as i16 - (self.knights&self.whites).count_ones() as i16);
+        let bishop = 3*((self.bishops&self.blacks).count_ones() as i16 - (self.bishops&self.whites).count_ones() as i16);
+        let rook = 5*((self.rooks&self.blacks).count_ones() as i16 - (self.rooks&self.whites).count_ones() as i16);
+        let queen = 9*((self.queens&self.blacks).count_ones() as i16 - (self.queens&self.whites).count_ones() as i16);
+        let king = 200*((self.kings&self.blacks).count_ones() as i16 - (self.kings&self.whites).count_ones() as i16);
+        let centre = (self.pawns&self.blacks&CENTER_PIECES).count_ones() as i16 - (self.pawns&self.whites&CENTER_PIECES).count_ones() as i16;
+        eval = pawn+knight+bishop+rook+queen+king+centre;
         self.eval = eval;
         return eval;
     }
@@ -122,9 +125,9 @@ impl Board{
 
     fn take(&mut self, bitmap:u64){
         if self.blacks & bitmap != 0{
-            self.whites = self.whites ^ bitmap;
-        }else{
             self.blacks = self.blacks ^ bitmap;
+        }else{
+            self.whites = self.whites ^ bitmap;
         }
 
         if self.pawns & bitmap != 0{
@@ -148,7 +151,7 @@ impl Board{
 
 #[inline]
 fn compare_boards(best_board:&mut Option<Board>, new_board:&mut Board, depth:i32){
-    println!("compare_boards()");
+    //println!("compare_boards()");
     let eval;
     if depth != 0{
         let best_response = find_best_response(*new_board); 
@@ -160,8 +163,8 @@ fn compare_boards(best_board:&mut Option<Board>, new_board:&mut Board, depth:i32
     match best_board{
         None=>{*best_board = Some(*new_board)},
         Some(ref prev_board)=>{
-            if eval > prev_board.eval{
-            *best_board = Some(*new_board);    
+            if eval >= prev_board.eval{
+                *best_board = Some(*new_board);    
             }
         }
     }
@@ -169,7 +172,7 @@ fn compare_boards(best_board:&mut Option<Board>, new_board:&mut Board, depth:i32
 
 #[inline]
 fn compare_boards_negative(best_board:&mut Option<Board>, new_board:&mut Board){
-    println!("compare_boards_negative()");
+    //println!("compare_boards_negative()");
     //let best_response = find_best_response(*new_board); 
 
     // let eval = find_best_move(best_response, depth-1).eval; 
@@ -188,7 +191,6 @@ fn compare_boards_negative(best_board:&mut Option<Board>, new_board:&mut Board){
 
 
 fn find_best_move(board:Board,  depth:i32)->Board{
-    println!("find_best_move()");
     // the functions job is to take in results from the same functions one
     // layer above and compare them one at a time
     // my first intuition is to use while let Some() for all of it
@@ -196,21 +198,21 @@ fn find_best_move(board:Board,  depth:i32)->Board{
     // storing every checked position on the heap. 
 
     let mut best_board:Option<Board> = None;
-    println!("starting pawn search layer {}", depth);
+    //println!("starting pawn search layer {}", depth);
     let mut pawn_bitmap:u64 = 0;
     while let Some(mut new_board) = find_new_pawn_move(&board, &mut pawn_bitmap){
-        println!("found pawn move");
+        //println!("found pawn move");
         compare_boards(&mut best_board, &mut new_board, depth);
 
     }
 
-    println!("starting knight search layer {}", depth);
+    //println!("starting knight search layer {}", depth);
     let mut knight_bitmap:u64 = 0;
     while let Some(mut new_board) = find_new_knight_move(&board, &mut knight_bitmap, board.blacks){
         compare_boards(&mut best_board, &mut new_board, depth);
     }
 
-    println!("starting bishop search layer {}", depth);
+    //println!("starting bishop search layer {}", depth);
     let mut bishop_bitmap:u64 = 0;
     while let Some(mut new_board) = find_new_bishop_move(&board, &mut bishop_bitmap, board.blacks){
         compare_boards(&mut best_board, &mut new_board, depth);
@@ -219,6 +221,7 @@ fn find_best_move(board:Board,  depth:i32)->Board{
     println!("starting rook search layer {}", depth);
     let mut rook_bitmap:u64 = 0;
     while let Some(mut new_board) = find_new_rook_move(&board, &mut rook_bitmap, board.blacks){
+        print_mask(new_board.rooks, "rooks");
         compare_boards(&mut best_board, &mut new_board, depth);
     }
 
@@ -227,18 +230,17 @@ fn find_best_move(board:Board,  depth:i32)->Board{
     while let Some(mut new_board) = find_new_queen_move(&board, &mut queen_bitmap, board.blacks){
         compare_boards(&mut best_board, &mut new_board, depth);
     }
-
-    println!("starting king search layer {}", depth);
+    //println!("starting king search layer {}", depth);
     let mut king_bitmap:u64 = 0;
     while let Some(mut new_board) = find_new_king_move(&board, &mut king_bitmap, board.blacks){
         compare_boards(&mut best_board, &mut new_board, depth);
     }
-
+    println!("finished layer {}", depth);
     return best_board.unwrap();
 }
 
 fn find_best_response(board:Board)->Board{
-    println!("find_best_response()");
+    //println!("find_best_response()");
     // this funciton does the same shit as the find_best_move()
     // but its from white, and searches for the move thats in whites favour
     // compare_boards_negative() finds the "worst" move, from the engines pov
@@ -247,40 +249,36 @@ fn find_best_response(board:Board)->Board{
 
     let mut pawn_bitmap:u64 = 0;
     while let Some(mut new_board) = find_new_white_pawn_move(&board, &mut pawn_bitmap){
-        println!("found_pawn_move()");
         compare_boards_negative(&mut best_board, &mut new_board);
     }
 
     let mut knight_bitmap:u64 = 0;
     while let Some(mut new_board) = find_new_knight_move(&board, &mut knight_bitmap, board.whites){
-        println!("found_knight_move()");
+        //println!("found_knight_move()");
         compare_boards_negative(&mut best_board, &mut new_board);
     }
 
     let mut bishop_bitmap:u64 = 0;
-    let mut count = 0;
     while let Some(mut new_board) = find_new_bishop_move(&board, &mut bishop_bitmap, board.whites){
-        print_mask(new_board.bishops, "new bishops");
+        //print_mask(new_board.bishops, "new bishops");
         compare_boards_negative(&mut best_board, &mut new_board);
-        count+=1;
-        if count==7{panic!("panicing")}
     }
 
     let mut rook_bitmap:u64 = 0;
     while let Some(mut new_board) = find_new_rook_move(&board, &mut rook_bitmap, board.whites){
-        println!("found_rook_move()");
+        //println!("found_rook_move()");
         compare_boards_negative(&mut best_board, &mut new_board);
     }
 
     let mut queen_bitmap:u64 = 0;
     while let Some(mut new_board) = find_new_queen_move(&board, &mut queen_bitmap, board.whites){
-        println!("found_queen_move()");
+        //println!("found_queen_move()");
         compare_boards_negative(&mut best_board, &mut new_board);
     }
 
     let mut king_bitmap:u64 = 0;
     while let Some(mut new_board) = find_new_king_move(&board, &mut king_bitmap, board.whites){
-        println!("found_king_move()");
+        //println!("found_king_move()");
         compare_boards_negative(&mut best_board, &mut new_board);
     }
 
@@ -295,26 +293,26 @@ fn find_new_pawn_move(board:&Board, pawn_bitmap:&mut u64)->Option<Board>{
     let mut found_new_move = false;
     let mut pawns = board.pawns & board.blacks;
     while !found_new_move{
-        println!("searching move");
+        //println!("searching move");
         if pawns == 0 {break}
         let first_pawn = 1<<pawns.ilog2();
         //if first_pawn&(board.whites|board.blacks) != 0{continue}
         let pushed_pawn = first_pawn>>8;
         if pushed_pawn&(*pawn_bitmap) == 0 {
-            pawns = pawns^(first_pawn|pushed_pawn); 
             *pawn_bitmap = *pawn_bitmap|pushed_pawn;
             found_new_move = true;
             let mut board_copy = board.clone();
-            board_copy.pawns = pawns;
+            board_copy.pawns = board.pawns^first_pawn|pushed_pawn  ;
+            board_copy.blacks = board.blacks^first_pawn|pushed_pawn;
             new_board = Some(board_copy);
         }else{
             let jumped_pawn = first_pawn>>16;
-            if jumped_pawn&(*pawn_bitmap) == 0{
-                pawns = pawns^(first_pawn|jumped_pawn);
+            if jumped_pawn & *pawn_bitmap == 0{
                 *pawn_bitmap = *pawn_bitmap|jumped_pawn;
                 found_new_move = true;
                 let mut board_copy = board.clone();
-                board_copy.pawns = pawns;
+                board_copy.pawns = board.pawns^first_pawn|jumped_pawn;
+                board_copy.blacks = board.blacks^first_pawn|jumped_pawn;
                 new_board = Some(board_copy);
             }else{
                 pawns = pawns^first_pawn;
@@ -326,7 +324,7 @@ fn find_new_pawn_move(board:&Board, pawn_bitmap:&mut u64)->Option<Board>{
 }
 
 fn find_new_white_pawn_move(board:&Board, pawn_bitmap:&mut u64)->Option<Board>{
-    println!("find_new_white_pawn_move()");
+    //println!("find_new_white_pawn_move()");
     // find a move that has not happened yet
     // tick the bitmap
     let mut new_board = None;
@@ -339,23 +337,21 @@ fn find_new_white_pawn_move(board:&Board, pawn_bitmap:&mut u64)->Option<Board>{
         let pushed_pawn = first_pawn<<8;
         if pushed_pawn&(*pawn_bitmap) == 0 {
             pawns = board.pawns^(first_pawn|pushed_pawn);  // watch
-            let copy_white = board.whites^(first_pawn|pushed_pawn);
             *pawn_bitmap = *pawn_bitmap|pushed_pawn;
             found_new_move = true;
             let mut board_copy = board.clone();
             board_copy.pawns = pawns;
-            board_copy.whites = copy_white;
+            board_copy.whites = board.whites^(first_pawn|pushed_pawn);
             new_board = Some(board_copy);
         }else{
             let jumped_pawn = first_pawn<<16;
             if jumped_pawn&(*pawn_bitmap) == 0{
                 pawns = board.pawns^(first_pawn|jumped_pawn); // watch
-                let copy_whites = board.whites^(first_pawn|jumped_pawn);
                 *pawn_bitmap = *pawn_bitmap|jumped_pawn;
                 found_new_move = true;
                 let mut board_copy = board.clone();
                 board_copy.pawns = pawns;
-                board_copy.whites = copy_whites;
+                board_copy.whites = board.whites^(first_pawn|jumped_pawn);
                 new_board = Some(board_copy);
             }else{
                 pawns = pawns^first_pawn;
@@ -388,13 +384,16 @@ fn find_new_knight_move(board:&Board, knight_bitmap:&mut u64, color_map:u64)->Op
             if (moved_knight&(*knight_bitmap|color_map)==0)&&(first_knight&kn_ofst.usage_mask_p==0){
                 knights = board.knights^first_knight|moved_knight;
                 *knight_bitmap = *knight_bitmap|moved_knight;
-                let new_whites = board.whites^first_knight|moved_knight;
                 let mut board_copy = board.clone();
                 if moved_knight & ((board.whites|board.blacks)^color_map) != 0{
                     board_copy.take(first_knight);
                 }
                 board_copy.knights = knights;
-                board_copy.whites = new_whites;
+                if color_map==board.whites{
+                    board_copy.whites = board.whites^first_knight|moved_knight;
+                }else{
+                    board_copy.blacks = board.blacks^first_knight|moved_knight;
+                }
                 new_board = Some(board_copy);
                 break 'outer;
             }
@@ -403,14 +402,17 @@ fn find_new_knight_move(board:&Board, knight_bitmap:&mut u64, color_map:u64)->Op
             let moved_knight = first_knight>>kn_ofst.offset;
             if (moved_knight&(*knight_bitmap|color_map)==0)&&(first_knight&kn_ofst.usage_mask_n==0){
                 knights = board.knights^first_knight|moved_knight;
-                let new_whites = board.whites^first_knight|moved_knight;
                 *knight_bitmap = *knight_bitmap|moved_knight;
                 let mut board_copy = board.clone();
                 if moved_knight & ((board.whites|board.blacks)^color_map) != 0{
                     board_copy.take(first_knight);
                 }
                 board_copy.knights = knights;
-                board_copy.whites = new_whites;
+                if color_map==board.whites{
+                    board_copy.whites = board.whites^first_knight|moved_knight;
+                }else{
+                    board_copy.blacks = board.blacks^first_knight|moved_knight;
+                }
                 new_board = Some(board_copy);
                 break 'outer;
             }
@@ -425,18 +427,18 @@ fn find_new_knight_move(board:&Board, knight_bitmap:&mut u64, color_map:u64)->Op
 fn cross_positive(first_piece:u64, pieces:&mut u64, piece_bitmap:&mut u64, color_map:u64, offset:&OffsetClosure<fn(u64, u64)->u64>)->Option<u64>{
     for offset_scalars in 1..8{
         let moved_piece = (offset.closure)(first_piece, offset_scalars);
-        //print_mask(moved_piece, "moved piece");
+        //print_mask(moved_piece, "crossed piece");
         if moved_piece & *piece_bitmap != 0{
             continue;
         }
-        if (moved_piece & color_map & offset.usage_mask != 0)||(moved_piece == 0){
+        if (moved_piece & color_map != 0)||(moved_piece == 0)||(moved_piece & offset.usage_mask != 0){
             //println!("hitttt");
             break;
         } 
         *pieces = *pieces^first_piece|moved_piece;
         *piece_bitmap = *piece_bitmap|moved_piece;
         //println!("returned Some");
-        //print_mask(color_map, "color map");
+        print_mask(moved_piece, "moved_piece");
         return Some(moved_piece);
     }
     //println!("returned None");
@@ -452,8 +454,8 @@ fn find_new_bishop_move(board:&Board, bishop_bitmap:&mut u64, color_map:u64)->Op
     'outer:loop{
         if bishops==0{break 'outer}
         let first_bishop = 1<<bishops.ilog2() as u64;
-        print_mask(first_bishop, "first bishop");
-        print_mask(*bishop_bitmap, "bishop bitmap");
+        //print_mask(first_bishop, "first bishop");
+        //print_mask(*bishop_bitmap, "bishop bitmap");
         if first_bishop & *bishop_bitmap != 0{
             bishops = bishops ^ first_bishop;
             //*bishop_bitmap = *bishop_bitmap & board.bishops;
@@ -463,13 +465,17 @@ fn find_new_bishop_move(board:&Board, bishop_bitmap:&mut u64, color_map:u64)->Op
         let bishop_closure_indexes = [0,1,2,3];
         for closure_index in bishop_closure_indexes{
             if let Some(moved_bishop) = cross_positive(first_bishop, &mut bishops, bishop_bitmap, color_map, &SHIFTING_CLOSURES[closure_index]){
-                print_mask(moved_bishop, "moved bishop");
+                //print_mask(moved_bishop, "moved bishop");
                 let mut board_copy = board.clone();
                 if moved_bishop & ((board.whites|board.blacks)^color_map) != 0{
                     board_copy.take(first_bishop);
                 }
                 board_copy.bishops = board.bishops^first_bishop|moved_bishop;
-                board_copy.whites = board_copy.whites^first_bishop|moved_bishop;
+                if color_map==board.whites{
+                    board_copy.whites = board.whites^first_bishop|moved_bishop;
+                }else{
+                    board_copy.blacks = board.blacks^first_bishop|moved_bishop;
+                }
                 new_board = Some(board_copy);
                 *bishop_bitmap = *bishop_bitmap|moved_bishop;
                 break 'outer;
@@ -478,7 +484,7 @@ fn find_new_bishop_move(board:&Board, bishop_bitmap:&mut u64, color_map:u64)->Op
         bishops = bishops^first_bishop;
         *bishop_bitmap = (*bishop_bitmap|first_bishop) & board.bishops & color_map;
     }
-    print_mask(new_board.unwrap().bishops, "new bishops");
+    //print_mask(new_board.unwrap().bishops, "new bishops");
     return new_board;
 }
 
@@ -492,20 +498,30 @@ fn find_new_rook_move(board:&Board, rook_bitmap:&mut u64, color_map:u64)->Option
         let first_rook = 1<<rooks.ilog2() as u64;
         if first_rook & *rook_bitmap != 0{
             rooks = rooks ^ first_rook;
-            *rook_bitmap = *rook_bitmap & board.rooks;
+            //*rook_bitmap = *rook_bitmap & board.rooks;
             continue;
         }
 
         let rook_closure_indexes = [4,5,6,7];
         for closure_index in rook_closure_indexes{
+            print_mask(*rook_bitmap, "rook bitmap before");
             if let Some(moved_rook) = cross_positive(first_rook, &mut rooks, rook_bitmap, color_map, &SHIFTING_CLOSURES[closure_index]){
+                print_mask(*rook_bitmap, "rook bitmap after");
                 let mut board_copy = board.clone();
                 if moved_rook & ((board.whites|board.blacks)^color_map) != 0{
                     board_copy.take(first_rook);
                 }
-                board_copy.rooks = rooks;
+                board_copy.rooks = board.rooks^first_rook|moved_rook;
+                if color_map==board.whites{
+                    board_copy.whites = board.whites^first_rook|moved_rook;
+                }else{
+                    board_copy.blacks = board.blacks^first_rook|moved_rook;
+                }
                 new_board = Some(board_copy);
+                *rook_bitmap = *rook_bitmap|moved_rook;
                 break 'outer;
+            }else{
+                println!("unable to move {}", closure_index);
             }
         }
         rooks = rooks^first_rook;
@@ -536,7 +552,12 @@ fn find_new_queen_move(board:&Board, queen_bitmap:&mut u64, color_map:u64)->Opti
                 if moved_queen & ((board.whites|board.blacks)^color_map) != 0{
                     board_copy.take(first_queen);
                 }
-                board_copy.queens = queens;
+                board_copy.queens = board.queens^first_queen|moved_queen;
+                if color_map==board.whites{
+                    board_copy.whites = board.whites^first_queen|moved_queen;
+                }else{
+                    board_copy.blacks = board.blacks^first_queen|moved_queen;
+                }
                 new_board = Some(board_copy);
                 break 'outer;
             }
@@ -553,7 +574,7 @@ fn kings_cross_positive(first_piece:u64, pieces:&mut u64, piece_bitmap:&mut u64,
     if moved_piece & *piece_bitmap != 0{
         return None;
     }
-    if (moved_piece & color_map & offset.usage_mask != 0)||(moved_piece != 0){
+    if (moved_piece & color_map != 0)||(moved_piece == 0)||(moved_piece & offset.usage_mask != 0){
         return None;
     }
     *pieces = *pieces^first_piece|moved_piece;
@@ -564,10 +585,13 @@ fn kings_cross_positive(first_piece:u64, pieces:&mut u64, piece_bitmap:&mut u64,
 fn find_new_king_move(board:&Board, king_bitmap:&mut u64, color_map:u64)->Option<Board>{
     let mut new_board:Option<Board> = None;
     let mut kings = board.kings & color_map;
+    //print_mask(kings, "kings");
 
     'outer:loop{
         if kings==0{break 'outer}
         let first_king = 1<<kings.ilog2() as u64;
+        //print_mask(first_king, "first king");
+        //print_mask(*king_bitmap, "king bitmap");
         if first_king & *  king_bitmap != 0{
             kings = kings ^ first_king;
             *king_bitmap = *king_bitmap & board.queens;
@@ -577,11 +601,17 @@ fn find_new_king_move(board:&Board, king_bitmap:&mut u64, color_map:u64)->Option
         let king_closure_indexes = [0,1,2,3,4,5,6,7];
         for closure_index in king_closure_indexes{
             if let Some(moved_king) = kings_cross_positive(first_king, &mut kings, king_bitmap, color_map, &SHIFTING_CLOSURES[closure_index]){
+                //print_mask(moved_king, "moved king");
                 let mut board_copy = board.clone();
                 if moved_king & ((board.whites|board.blacks)^color_map) != 0{
                     board_copy.take(first_king);
                 }
-                board_copy.kings = kings;
+                board_copy.kings = board.kings^first_king|moved_king;
+                if color_map==board.whites{
+                    board_copy.whites = board.whites^first_king|moved_king;
+                }else{
+                    board_copy.blacks = board.blacks^first_king|moved_king;
+                }
                 new_board = Some(board_copy);
                 break 'outer;
             }
@@ -589,6 +619,7 @@ fn find_new_king_move(board:&Board, king_bitmap:&mut u64, color_map:u64)->Option
         kings = kings^first_king;
         *king_bitmap = (*king_bitmap|first_king) & board.kings & color_map;
     }
+    //print_mask(new_board.unwrap().kings, "new king move");
 
     return new_board;
 }
@@ -613,16 +644,13 @@ fn main() {
 
         board = find_best_move(board, MOVE_SEARCH_DEPTH);
 
-
-
         //modify move to board
         //calculate best response
         //make response
-        println!("SLEEPING...");
-        std::thread::sleep(std::time::Duration::from_secs(1));
     }
 }
 
+#[allow(dead_code)]
 fn print_mask(mask:u64, name:&str){
     println!("{}:", name);
     let range = 0..8;
@@ -736,7 +764,7 @@ fn collect_white_move(mut board:Board)->Board{
 
     row = 9;
     col = 9;
-    let mut moved_piece_mask = 1<<(8*(col-1)+8-row);
+    let mut moved_piece_mask = 0;
     while moved_piece_mask&move_squares==0{
         let mut input:String = "".to_owned();
         println!("Select square");
@@ -749,13 +777,14 @@ fn collect_white_move(mut board:Board)->Board{
         let mut iter = input.chars();
         row = iter.next().unwrap() as u32 - 96;
         col = iter.next().unwrap() as u32 - 48;
-        moved_piece_mask = 1<<(8*(col-1)+8-row)
+        moved_piece_mask = 1<<(8*(col-1)+8-row);   
     }
+    println!("{}, {}", row, col);
     if moved_piece_mask&board.blacks != 0{
         board.take(moved_piece_mask);
     }
     move_white_piece(&mut board, piece_mask, moved_piece_mask);
-    print_mask(board.pawns, "pawns");
+    //print_mask(board.pawns, "pawns");
     // mark and display the possible moves from move_squares
     // collect second input, move piece and return the board
     return board;
@@ -779,17 +808,16 @@ fn possible_white_moves(board:&Board, piece_mask:u64)->u64{
         let mut knight_bitmap = board.knights^piece_mask;
         while let Some(new_board) = find_new_knight_move(board, &mut knight_bitmap, board.whites){
             let new_move = (board.knights&board.whites)^(new_board.knights&new_board.whites)^piece_mask;
-            print_mask(new_move, "new move");
             moves = moves|new_move;
         }
     } else if piece_mask & board.bishops != 0{
-        let mut bishop_bitmap = 0;
+        let mut bishop_bitmap = board.bishops^piece_mask;
         while let Some(new_board) = find_new_bishop_move(board, &mut bishop_bitmap, board.whites){
             let new_move = (board.bishops&board.whites)^(new_board.bishops&new_board.whites)^piece_mask;
             moves = moves|new_move;
         }
     } else if piece_mask & board.rooks != 0{
-        let mut rook_bitmap = 0;
+        let mut rook_bitmap = board.rooks^piece_mask;
         while let Some(new_board) = find_new_rook_move(board, &mut rook_bitmap, board.whites){
             let new_move = (board.rooks&board.whites)^(new_board.rooks&new_board.whites)^piece_mask;
             moves = moves|new_move;
