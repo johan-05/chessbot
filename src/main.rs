@@ -1,5 +1,6 @@
 extern crate colored;
 
+
 use colored::*;
 use colored::ColoredString;
 #[derive(Clone, Copy)]
@@ -44,18 +45,20 @@ abcdefgh
 00000000
 00000000
 00000000
-00011000
-00011000
 00000000
 00000000
+00000000
+11111111
 00000000
 */
 
 
 
 
-const MOVE_SEARCH_DEPTH:i32 = 2;
+const MOVE_SEARCH_DEPTH:i32 = 3;
 const CENTER_PIECES:u64 = 103481868288;
+const BLACK_PAWN_HOMEROW:u64 = 71776119061217280;
+const WHITE_PAWN_HOMEROW:u64 = 65280;
 const KNIGHT_OFFSETS:[KnOfst;4] = [
     KnOfst{offset:17, usage_mask_p:18446603888132915328, usage_mask_n:723401728381419519},
     KnOfst{offset:15, usage_mask_p:18446463702556279041, usage_mask_n:9259542123273846783},
@@ -119,7 +122,7 @@ impl Board{
         let centre = (self.pawns&self.blacks&CENTER_PIECES).count_ones() as i16 - (self.pawns&self.whites&CENTER_PIECES).count_ones() as i16;
         eval = pawn+knight+bishop+rook+queen+king+centre;
         self.eval = eval;
-        return eval;
+        return eval;   
     }
 
 
@@ -201,11 +204,9 @@ fn find_best_move(board:Board,  depth:i32)->Board{
     //println!("starting pawn search layer {}", depth);
     let mut pawn_bitmap:u64 = 0;
     while let Some(mut new_board) = find_new_pawn_move(&board, &mut pawn_bitmap){
-        //println!("found pawn move");
-        compare_boards(&mut best_board, &mut new_board, depth);
-
+        compare_boards(&mut best_board, &mut new_board, depth)
     }
-
+    
     //println!("starting knight search layer {}", depth);
     let mut knight_bitmap:u64 = 0;
     while let Some(mut new_board) = find_new_knight_move(&board, &mut knight_bitmap, board.blacks){
@@ -218,14 +219,14 @@ fn find_best_move(board:Board,  depth:i32)->Board{
         compare_boards(&mut best_board, &mut new_board, depth);
     }
 
-    println!("starting rook search layer {}", depth);
+    //println!("starting rook search layer {}", depth);
     let mut rook_bitmap:u64 = 0;
     while let Some(mut new_board) = find_new_rook_move(&board, &mut rook_bitmap, board.blacks){
-        print_mask(new_board.rooks, "rooks");
+        //print_mask(new_board.rooks, "rooks");
         compare_boards(&mut best_board, &mut new_board, depth);
     }
 
-    println!("starting queen search layer {}", depth);
+    //println!("starting queen search layer {}", depth);
     let mut queen_bitmap:u64 = 0;
     while let Some(mut new_board) = find_new_queen_move(&board, &mut queen_bitmap, board.blacks){
         compare_boards(&mut best_board, &mut new_board, depth);
@@ -235,8 +236,18 @@ fn find_best_move(board:Board,  depth:i32)->Board{
     while let Some(mut new_board) = find_new_king_move(&board, &mut king_bitmap, board.blacks){
         compare_boards(&mut best_board, &mut new_board, depth);
     }
-    println!("finished layer {}", depth);
-    return best_board.unwrap();
+    //println!("finished layer {}", depth);
+    let return_board = best_board.unwrap();
+    if return_board.whites & return_board.blacks != 0{
+        display_board_windows(&board, 0);
+        print_mask(board.whites, "old whites");
+        print_mask(board.blacks, "old blacks");
+        display_board_windows(&return_board, 0);
+        print_mask(return_board.whites, "new whites");
+        print_mask(return_board.blacks, "new blacks");
+        panic!("we messed up");
+    }
+    return return_board;
 }
 
 fn find_best_response(board:Board)->Board{
@@ -248,43 +259,116 @@ fn find_best_response(board:Board)->Board{
     let mut best_board:Option<Board> = None;
 
     let mut pawn_bitmap:u64 = 0;
+    //println!("starting pawn response search layer");
     while let Some(mut new_board) = find_new_white_pawn_move(&board, &mut pawn_bitmap){
+        //println!("found_pawn_move()");
         compare_boards_negative(&mut best_board, &mut new_board);
     }
 
+    //println!("starting knight response search layer");
     let mut knight_bitmap:u64 = 0;
     while let Some(mut new_board) = find_new_knight_move(&board, &mut knight_bitmap, board.whites){
         //println!("found_knight_move()");
         compare_boards_negative(&mut best_board, &mut new_board);
     }
 
+    //println!("starting bishop response search layer");
     let mut bishop_bitmap:u64 = 0;
     while let Some(mut new_board) = find_new_bishop_move(&board, &mut bishop_bitmap, board.whites){
         //print_mask(new_board.bishops, "new bishops");
         compare_boards_negative(&mut best_board, &mut new_board);
     }
 
+    //println!("starting rook response search layer");
     let mut rook_bitmap:u64 = 0;
     while let Some(mut new_board) = find_new_rook_move(&board, &mut rook_bitmap, board.whites){
         //println!("found_rook_move()");
         compare_boards_negative(&mut best_board, &mut new_board);
     }
 
+    //println!("starting queen response search layer");
     let mut queen_bitmap:u64 = 0;
+    let mut count = 0;
     while let Some(mut new_board) = find_new_queen_move(&board, &mut queen_bitmap, board.whites){
         //println!("found_queen_move()");
+        count += 1;
+        if count >20{
+            display_board_windows(&board, 0);
+            display_board_windows(&new_board, 1);
+            print_mask(board.queens&board.whites, "new whites");
+
+        }
         compare_boards_negative(&mut best_board, &mut new_board);
     }
 
+        //println!("starting king response search layer");
     let mut king_bitmap:u64 = 0;
     while let Some(mut new_board) = find_new_king_move(&board, &mut king_bitmap, board.whites){
         //println!("found_king_move()");
         compare_boards_negative(&mut best_board, &mut new_board);
     }
 
-    return best_board.unwrap();
+    let return_board = best_board.unwrap();
+    if return_board.whites & return_board.blacks != 0{
+        display_board_windows(&board, 0);
+        print_mask(board.whites, "old whites");
+        print_mask(board.blacks, "old blacks");
+        display_board_windows(&return_board, 0);
+        print_mask(return_board.whites, "new whites");
+        print_mask(return_board.blacks, "new blacks");
+        panic!("we messed up");
+    }
+    
+    return return_board;
 }
 
+/*
+abcdefgh
+00010000
+00000000
+00000000
+00010000
+00000000
+00000000
+00000000
+00000000
+
+abcdefgh
+11111111
+11111111
+00000000
+00000000
+00000000
+00000000
+00000000
+00000000
+
+
+00000000
+00000000
+00000000
+00010000
+00000000
+00000000
+11111111
+11101111
+*/
+
+
+
+ 
+fn not_main(){
+    let mut board = Board::new();
+    board.queens = 1152921573326323712;
+   // board.blacks = 18441959067824947200;
+    board.whites = 68719542255;
+    let mut pawn_bitmap:u64 = 0;
+    display_board_windows(&board, 1);
+    std::thread::sleep(std::time::Duration::from_secs(2));
+    while let Some(new_board) = find_new_queen_move(&board, &mut pawn_bitmap, board.whites){
+        display_board_windows(&new_board, 0);
+    }
+}
 
 fn find_new_pawn_move(board:&Board, pawn_bitmap:&mut u64)->Option<Board>{
     // find a move that has not happened yet
@@ -293,21 +377,20 @@ fn find_new_pawn_move(board:&Board, pawn_bitmap:&mut u64)->Option<Board>{
     let mut found_new_move = false;
     let mut pawns = board.pawns & board.blacks;
     while !found_new_move{
-        //println!("searching move");
         if pawns == 0 {break}
         let first_pawn = 1<<pawns.ilog2();
         //if first_pawn&(board.whites|board.blacks) != 0{continue}
         let pushed_pawn = first_pawn>>8;
-        if pushed_pawn&(*pawn_bitmap) == 0 {
+        if pushed_pawn & *pawn_bitmap | (board.whites&pushed_pawn)  == 0{
             *pawn_bitmap = *pawn_bitmap|pushed_pawn;
             found_new_move = true;
             let mut board_copy = board.clone();
             board_copy.pawns = board.pawns^first_pawn|pushed_pawn  ;
             board_copy.blacks = board.blacks^first_pawn|pushed_pawn;
             new_board = Some(board_copy);
-        }else{
+        }else if first_pawn & BLACK_PAWN_HOMEROW != 0{
             let jumped_pawn = first_pawn>>16;
-            if jumped_pawn & *pawn_bitmap == 0{
+            if jumped_pawn & *pawn_bitmap | (board.whites&jumped_pawn) == 0{
                 *pawn_bitmap = *pawn_bitmap|jumped_pawn;
                 found_new_move = true;
                 let mut board_copy = board.clone();
@@ -317,6 +400,8 @@ fn find_new_pawn_move(board:&Board, pawn_bitmap:&mut u64)->Option<Board>{
             }else{
                 pawns = pawns^first_pawn;
             }
+        }else{
+            pawns = pawns^first_pawn;
         }
     }
 
@@ -335,7 +420,7 @@ fn find_new_white_pawn_move(board:&Board, pawn_bitmap:&mut u64)->Option<Board>{
         let first_pawn = 1<<pawns.ilog2();
         //if first_pawn&(board.whites|board.blacks) != 0{continue}
         let pushed_pawn = first_pawn<<8;
-        if pushed_pawn&(*pawn_bitmap) == 0 {
+        if pushed_pawn&(*pawn_bitmap) | (board.blacks&pushed_pawn) == 0 {
             pawns = board.pawns^(first_pawn|pushed_pawn);  // watch
             *pawn_bitmap = *pawn_bitmap|pushed_pawn;
             found_new_move = true;
@@ -343,9 +428,9 @@ fn find_new_white_pawn_move(board:&Board, pawn_bitmap:&mut u64)->Option<Board>{
             board_copy.pawns = pawns;
             board_copy.whites = board.whites^(first_pawn|pushed_pawn);
             new_board = Some(board_copy);
-        }else{
+        }else if first_pawn & WHITE_PAWN_HOMEROW != 0{
             let jumped_pawn = first_pawn<<16;
-            if jumped_pawn&(*pawn_bitmap) == 0{
+            if jumped_pawn&(*pawn_bitmap) | (board.blacks&jumped_pawn) == 0{
                 pawns = board.pawns^(first_pawn|jumped_pawn); // watch
                 *pawn_bitmap = *pawn_bitmap|jumped_pawn;
                 found_new_move = true;
@@ -356,6 +441,8 @@ fn find_new_white_pawn_move(board:&Board, pawn_bitmap:&mut u64)->Option<Board>{
             }else{
                 pawns = pawns^first_pawn;
             }
+        }else{
+            pawns = pawns^first_pawn;
         }
     }
 
@@ -386,7 +473,7 @@ fn find_new_knight_move(board:&Board, knight_bitmap:&mut u64, color_map:u64)->Op
                 *knight_bitmap = *knight_bitmap|moved_knight;
                 let mut board_copy = board.clone();
                 if moved_knight & ((board.whites|board.blacks)^color_map) != 0{
-                    board_copy.take(first_knight);
+                    board_copy.take(moved_knight);
                 }
                 board_copy.knights = knights;
                 if color_map==board.whites{
@@ -405,7 +492,7 @@ fn find_new_knight_move(board:&Board, knight_bitmap:&mut u64, color_map:u64)->Op
                 *knight_bitmap = *knight_bitmap|moved_knight;
                 let mut board_copy = board.clone();
                 if moved_knight & ((board.whites|board.blacks)^color_map) != 0{
-                    board_copy.take(first_knight);
+                    board_copy.take(moved_knight);
                 }
                 board_copy.knights = knights;
                 if color_map==board.whites{
@@ -424,10 +511,14 @@ fn find_new_knight_move(board:&Board, knight_bitmap:&mut u64, color_map:u64)->Op
     return new_board;
 }
 
-fn cross_positive(first_piece:u64, pieces:&mut u64, piece_bitmap:&mut u64, color_map:u64, offset:&OffsetClosure<fn(u64, u64)->u64>)->Option<u64>{
+fn cross_positive(first_piece:u64, pieces:&mut u64, piece_bitmap:&mut u64, color_map:u64, rev_color:u64, offset:&OffsetClosure<fn(u64, u64)->u64>)->Option<u64>{
     for offset_scalars in 1..8{
         let moved_piece = (offset.closure)(first_piece, offset_scalars);
         //print_mask(moved_piece, "crossed piece");
+        if moved_piece | (*piece_bitmap & rev_color) != 0{
+            break;
+        }
+
         if moved_piece & *piece_bitmap != 0{
             continue;
         }
@@ -438,7 +529,7 @@ fn cross_positive(first_piece:u64, pieces:&mut u64, piece_bitmap:&mut u64, color
         *pieces = *pieces^first_piece|moved_piece;
         *piece_bitmap = *piece_bitmap|moved_piece;
         //println!("returned Some");
-        print_mask(moved_piece, "moved_piece");
+        //print_mask(moved_piece, "moved_piece");
         return Some(moved_piece);
     }
     //println!("returned None");
@@ -464,11 +555,11 @@ fn find_new_bishop_move(board:&Board, bishop_bitmap:&mut u64, color_map:u64)->Op
 
         let bishop_closure_indexes = [0,1,2,3];
         for closure_index in bishop_closure_indexes{
-            if let Some(moved_bishop) = cross_positive(first_bishop, &mut bishops, bishop_bitmap, color_map, &SHIFTING_CLOSURES[closure_index]){
+            if let Some(moved_bishop) = cross_positive(first_bishop, &mut bishops, bishop_bitmap, ((board.whites|board.blacks)^color_map), color_map, &SHIFTING_CLOSURES[closure_index]){
                 //print_mask(moved_bishop, "moved bishop");
                 let mut board_copy = board.clone();
                 if moved_bishop & ((board.whites|board.blacks)^color_map) != 0{
-                    board_copy.take(first_bishop);
+                    board_copy.take(moved_bishop);
                 }
                 board_copy.bishops = board.bishops^first_bishop|moved_bishop;
                 if color_map==board.whites{
@@ -504,12 +595,12 @@ fn find_new_rook_move(board:&Board, rook_bitmap:&mut u64, color_map:u64)->Option
 
         let rook_closure_indexes = [4,5,6,7];
         for closure_index in rook_closure_indexes{
-            print_mask(*rook_bitmap, "rook bitmap before");
-            if let Some(moved_rook) = cross_positive(first_rook, &mut rooks, rook_bitmap, color_map, &SHIFTING_CLOSURES[closure_index]){
-                print_mask(*rook_bitmap, "rook bitmap after");
+            //print_mask(*rook_bitmap, "rook bitmap before");
+            if let Some(moved_rook) = cross_positive(first_rook, &mut rooks, rook_bitmap, color_map, (board.whites|board.blacks)^color_map, &SHIFTING_CLOSURES[closure_index]){
+                //print_mask(*rook_bitmap, "rook bitmap after");
                 let mut board_copy = board.clone();
                 if moved_rook & ((board.whites|board.blacks)^color_map) != 0{
-                    board_copy.take(first_rook);
+                    board_copy.take(moved_rook);
                 }
                 board_copy.rooks = board.rooks^first_rook|moved_rook;
                 if color_map==board.whites{
@@ -521,7 +612,7 @@ fn find_new_rook_move(board:&Board, rook_bitmap:&mut u64, color_map:u64)->Option
                 *rook_bitmap = *rook_bitmap|moved_rook;
                 break 'outer;
             }else{
-                println!("unable to move {}", closure_index);
+                //println!("unable to move {}", closure_index);
             }
         }
         rooks = rooks^first_rook;
@@ -535,11 +626,12 @@ fn find_new_queen_move(board:&Board, queen_bitmap:&mut u64, color_map:u64)->Opti
     // fancy schmancy raycasting
     let mut new_board:Option<Board> = None;
     let mut queens = board.queens & color_map;
+    //print_mask(queens, "internal queens");
 
     'outer:loop{
         if queens==0{break 'outer}
         let first_queen = 1<<queens.ilog2() as u64;
-        if first_queen & *  queen_bitmap != 0{
+        if first_queen & *queen_bitmap != 0{
             queens = queens ^ first_queen;
             *queen_bitmap = *queen_bitmap & board.queens;
             continue;
@@ -547,10 +639,10 @@ fn find_new_queen_move(board:&Board, queen_bitmap:&mut u64, color_map:u64)->Opti
 
         let queen_closure_indexes = [0,1,2,3,4,5,6,7];
         for closure_index in queen_closure_indexes{
-            if let Some(moved_queen) = cross_positive(first_queen, &mut queens, queen_bitmap, color_map, &SHIFTING_CLOSURES[closure_index]){
+            if let Some(moved_queen) = cross_positive(first_queen, &mut queens, queen_bitmap, color_map, (board.whites|board.blacks)^color_map, &SHIFTING_CLOSURES[closure_index]){
                 let mut board_copy = board.clone();
                 if moved_queen & ((board.whites|board.blacks)^color_map) != 0{
-                    board_copy.take(first_queen);
+                    board_copy.take(moved_queen);
                 }
                 board_copy.queens = board.queens^first_queen|moved_queen;
                 if color_map==board.whites{
@@ -571,6 +663,7 @@ fn find_new_queen_move(board:&Board, queen_bitmap:&mut u64, color_map:u64)->Opti
 
 fn kings_cross_positive(first_piece:u64, pieces:&mut u64, piece_bitmap:&mut u64, color_map:u64, offset:&OffsetClosure<fn(u64,u64)->u64>)->Option<u64>{
     let moved_piece = (offset.closure)(first_piece, 1);
+
     if moved_piece & *piece_bitmap != 0{
         return None;
     }
@@ -604,7 +697,7 @@ fn find_new_king_move(board:&Board, king_bitmap:&mut u64, color_map:u64)->Option
                 //print_mask(moved_king, "moved king");
                 let mut board_copy = board.clone();
                 if moved_king & ((board.whites|board.blacks)^color_map) != 0{
-                    board_copy.take(first_king);
+                    board_copy.take(moved_king);
                 }
                 board_copy.kings = board.kings^first_king|moved_king;
                 if color_map==board.whites{
@@ -633,13 +726,14 @@ fn main() {
 
 
     let mut board = Board::new();
+    print_mask(board.rooks, "rookie smookies");
 
 
     while &board.kings.count_ones()==&2{ //yes this game lets you capture the kings before the game ends
-        display_board(&board, 0);
+        display_board_windows(&board, 0);
         
         board = collect_white_move(board);
-        display_board(&board, 0);
+        display_board_windows(&board, 0);
 
 
         board = find_best_move(board, MOVE_SEARCH_DEPTH);
@@ -661,6 +755,60 @@ fn print_mask(mask:u64, name:&str){
     println!(" ");
 }
 
+
+fn display_board_windows(board:&Board, moves:u64){
+    let mut board_list:Vec<ColoredString> = Vec::with_capacity(64);
+    for i in 0..64{
+        let mut square:ColoredString;   
+        if board.blacks&(1<<i)!=0{
+            if (board.whites|board.blacks)&(1<<i)==0{
+                square = "  ".truecolor(8, 11, 11).on_truecolor(119, 149, 86);
+            }else if board.kings&(1<<i)!=0{
+                square = "♔ ".truecolor(8, 11, 11).on_truecolor(119, 149, 86);
+            }else if board.queens&(1<<i)!=0{
+                square = "♕ ".truecolor(8, 11, 11).on_truecolor(119, 149, 86);
+            }else if board.rooks&(1<<i)!=0{
+                square = "♖ ".truecolor(8, 11, 11).on_truecolor(119, 149, 86);
+            }else if board.bishops&(1<<i)!=0{
+                square = "♗ ".truecolor(8, 11, 11).on_truecolor(119, 149, 86);
+            }else if board.knights&(1<<i)!=0{
+                square = "♘ ".truecolor(8, 11, 11).on_truecolor(119, 149, 86);
+            }else{
+                square = "♙ ".truecolor(8, 11, 11).on_truecolor(119, 149, 86);
+            } 
+        } else{
+            if (board.whites|board.blacks)&(1<<i)==0{
+                square = "  ".truecolor(255, 255, 255).on_truecolor(119, 149, 86);
+            }else if board.kings&(1<<i)!=0{
+                square = "♔ ".truecolor(255, 255, 255).on_truecolor(119, 149, 86);
+            }else if board.queens&(1<<i)!=0{
+                square = "♕ ".truecolor(255, 255, 255).on_truecolor(119, 149, 86);
+            }else if board.rooks&(1<<i)!=0{
+                square = "♖ ".truecolor(255, 255, 255).on_truecolor(119, 149, 86);
+            }else if board.bishops&(1<<i)!=0{
+                square = "♗ ".truecolor(255, 255, 255).on_truecolor(119, 149, 86);
+            }else if board.knights&(1<<i)!=0{
+                square = "♘ ".truecolor(255, 255, 255).on_truecolor(119, 149, 86);
+            }else{
+                square = "♙ ".truecolor(255, 255, 255).on_truecolor(119, 149, 86);
+            } 
+        }
+        if (1<<i)&moves != 0{
+            square = square.on_bright_magenta();
+        }
+        board_list.push(square);
+    }
+    let range = 0..8;
+    for i in range.into_iter().rev(){
+        println!("{}{}{}{}{}{}{}{}",
+            board_list[8*i+7], board_list[8*i+6],
+            board_list[8*i+5], board_list[8*i+4],
+            board_list[8*i+3], board_list[8*i+2],
+            board_list[8*i+1], board_list[8*i  ],
+        )
+    }
+    println!(" ");
+}
 
 fn display_board(board:&Board, moves:u64){
     let mut board_list:Vec<ColoredString> = Vec::with_capacity(64);
@@ -747,7 +895,7 @@ fn collect_white_move(mut board:Board)->Board{
         println!("Select piece");
         std::io::stdin().read_line(&mut input).unwrap();
         println!("{}", input);
-        if input.chars().count() != 3{
+        if input.chars().count() != 4{
             println!("invalid square");
             continue;
         }
@@ -770,7 +918,7 @@ fn collect_white_move(mut board:Board)->Board{
         println!("Select square");
         std::io::stdin().read_line(&mut input).unwrap();
         println!("{}", input);
-        if input.chars().count() != 3{
+        if input.chars().count() != 4{
             println!("invalid square");
             continue;
         }
